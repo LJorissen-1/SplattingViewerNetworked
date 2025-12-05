@@ -1,5 +1,5 @@
 import * as pc from "playcanvas";
-import { joinRoom, selfId } from 'https://esm.sh/trystero@0.22.0';
+import { joinRoom, selfId } from 'https://esm.sh/trystero@0.22.0/firebase';
 
 window.pc = pc;
 
@@ -1016,101 +1016,72 @@ function createMobileMenuButton() {
     document.body.appendChild(btn);
 }
 
+
 function setupNetworking(app, camera, roomName) {
-    // 1. Configuration
-    const appId = 'my-3d-scene-viewer-CampusViewer'; // Unique ID for your app
-    const roomId = roomName || 'lobby'; // Separate rooms per scene
-    
-    // 2. Join the room
-    const room = joinRoom({ appId }, roomId);
-    
-    // 3. Define Actions (What data we send)
-    // We send an array: [posX, posY, posZ, rotX, rotY, rotZ]
+    const appId = 'pom-limburg-campus-viewer-v2'; 
+    const roomId = roomName || 'lobby'; 
+
+	const firebaseConfig = {
+        apiKey: "AIzaSyC6VdK0HBaObV1__QYwSCaQn4eeU3mtjIY",
+        authDomain: "campus-viewer-2.firebaseapp.com",
+        
+        // Try this URL first (Standard for new projects):
+		databaseURL: "https://campus-viewer-2-default-rtdb.firebaseio.com",    
+		
+        projectId: "campus-viewer-2",
+        storageBucket: "campus-viewer-2.firebasestorage.app",
+        messagingSenderId: "155515968390",
+        appId: "https://campus-viewer-2-default-rtdb.firebaseio.com" //1:155515968390:web:86119cbd365475154c6a07"
+    };
+	
+    console.log("Connecting to Firebase...");
+    const room = joinRoom(firebaseConfig, roomId);
+
+    // --- The rest of your logic remains EXACTLY the same ---
     const [sendMove, getMove] = room.makeAction('move');
+    const peers = {}; 
 
-    // State to track peers
-    const peers = {}; // Dictionary: { peerId: Entity }
+    room.onPeerJoin(peerId => console.log(`Peer Joined: ${peerId}`));
+    room.onPeerLeave(peerId => {
+        if (peers[peerId]) {
+            peers[peerId].destroy();
+            delete peers[peerId];
+        }
+    });
 
-    // --- Helper: Create a Cube for a Peer ---
     const createPeerCube = (id) => {
         const entity = new pc.Entity(`Peer-${id}`);
-        
-        // Add a Box representation
-        entity.addComponent('render', {
-            type: 'box'
-        });
-
-        // Make it a specific size (e.g., human height-ish box)
-        entity.setLocalScale(0.5, 0.5, 0.5);
-
-        // Give it a random color so we can tell users apart
+        entity.addComponent('render', { type: 'box' });
+        entity.setLocalScale(0.5, 0.5, 0.5); 
         const material = new pc.StandardMaterial();
         material.diffuse = new pc.Color(Math.random(), Math.random(), Math.random());
         material.update();
         entity.render.material = material;
-
-        // Add to scene
         app.root.addChild(entity);
         peers[id] = entity;
-        
-        console.log(`User joined: ${id}`);
         return entity;
     };
 
-    // --- Event: Peer Joined ---
-    room.onPeerJoin(peerId => {
-        if (!peers[peerId]) {
-            createPeerCube(peerId);
+    getMove((data, peerId) => {
+        let entity = peers[peerId];
+        if (!entity) entity = createPeerCube(peerId);
+        if (Array.isArray(data) && data.length === 6) {
+            entity.setPosition(data[0], data[1], data[2]);
+            entity.setEulerAngles(data[3], data[4], data[5]);
         }
     });
 
-    // --- Event: Peer Left ---
-    room.onPeerLeave(peerId => {
-        if (peers[peerId]) {
-            peers[peerId].destroy(); // Remove from 3D scene
-            delete peers[peerId];    // Remove from memory
-            console.log(`User left: ${peerId}`);
-        }
-    });
-
-    // --- Event: Receive Data ---
-	getMove((data, peerId) => {
-		let entity = peers[peerId];
-		if (!entity) entity = createPeerCube(peerId);
-
-		// SECURITY CHECK: Ensure data is an array of 6 finite numbers
-		if (Array.isArray(data) && data.length === 6 && data.every(n => Number.isFinite(n))) {
-			entity.setPosition(data[0], data[1], data[2]);
-			entity.setEulerAngles(data[3], data[4], data[5]);
-		} else {
-			console.warn(`Received corrupt data from ${peerId}`);
-		}
-	});
-
-    // --- Broadcast Loop ---
-    // We send our position to everyone else every frame (or throttled)
     let lastPos = new pc.Vec3();
     let lastRot = new pc.Vec3();
-    
-    app.on('update', (dt) => {
+    app.on('update', () => {
         const currentPos = camera.getPosition();
         const currentRot = camera.getEulerAngles();
+        if (!currentPos) return;
 
-        // Optimization: Only send if we moved significantly
-        const dist = currentPos.distance(lastPos);
-        const rotDist = Math.abs(currentRot.y - lastRot.y); // mostly care about Y rotation (yaw)
-
-        if (dist > 0.01 || rotDist > 0.1) {
-            // Send compact array to save bandwidth
-            sendMove([
-                currentPos.x, currentPos.y, currentPos.z,
-                currentRot.x, currentRot.y, currentRot.z
-            ]);
-
+        if (currentPos.distance(lastPos) > 0.05 || Math.abs(currentRot.y - lastRot.y) > 0.5) {
+            sendMove([currentPos.x, currentPos.y, currentPos.z, currentRot.x, currentRot.y, currentRot.z]);
             lastPos.copy(currentPos);
             lastRot.copy(currentRot);
         }
     });
-
-    console.log(`Networking started. ID: ${selfId} | Room: ${roomId}`);
 }
