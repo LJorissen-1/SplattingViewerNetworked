@@ -1033,7 +1033,10 @@ function setupNetworking(app, camera, roomName) {
         messagingSenderId: "155515968390",
         appId: "https://campus-viewer-2-default-rtdb.firebaseio.com", //1:155515968390:web:86119cbd365475154c6a07",
 		rtcConfig: {
+             iceTransportPolicy: 'relay',
 			 iceServers: [
+              { urls: "stun:stun.l.google.com:19302" },
+			  { urls: "stun:stun1.l.google.com:19302" },
 			  {
 				urls: "stun:stun.relay.metered.ca:80",
 			  },
@@ -1061,15 +1064,6 @@ function setupNetworking(app, camera, roomName) {
 		  }
     };
 	
- // 2. Define ICE Servers (The "Phonebook" for public IPs)
-   /* const rtcConfig = {
-        iceServers: [
-            { urls: "stun:stun.l.google.com:19302" },
-            { urls: "stun:stun1.l.google.com:19302" },
-            { urls: "stun:stun2.l.google.com:19302" }
-        ]
-    };*/
-
     console.log("Connecting to Firebase...");
 
     const room = joinRoom(firebaseConfig, roomId);
