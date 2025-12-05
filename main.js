@@ -1034,8 +1034,22 @@ function setupNetworking(app, camera, roomName) {
         appId: "https://campus-viewer-2-default-rtdb.firebaseio.com" //1:155515968390:web:86119cbd365475154c6a07"
     };
 	
+ // 2. Define ICE Servers (The "Phonebook" for public IPs)
+    const rtcConfig = {
+        iceServers: [
+            { urls: "stun:stun.l.google.com:19302" },
+            { urls: "stun:stun1.l.google.com:19302" },
+            { urls: "stun:stun2.l.google.com:19302" }
+        ]
+    };
+
     console.log("Connecting to Firebase...");
-    const room = joinRoom(firebaseConfig, roomId);
+
+    // 3. Pass the RTC config to your joinRoom function
+    // Note: If you are using Trystero, it usually handles this automatically, 
+    // but if you are using a custom wrapper, you MUST pass 'rtcConfig' 
+    // to the "new RTCPeerConnection(rtcConfig)" call inside joinRoom.
+    const room = joinRoom(firebaseConfig, roomId, rtcConfig);
 
     // --- The rest of your logic remains EXACTLY the same ---
     const [sendMove, getMove] = room.makeAction('move');
